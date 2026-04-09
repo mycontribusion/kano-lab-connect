@@ -1,0 +1,5 @@
+{
+  "name": "Kano Lab Connect",
+  "description": "A comprehensive directory and map of medical laboratories in Kano State, helping doctors find services, availability, and proximity.",
+  "requestFramePermissions": ["geolocation"]
+}
