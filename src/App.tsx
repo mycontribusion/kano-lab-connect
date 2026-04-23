@@ -1,223 +1,252 @@
 import { useState, useEffect, useMemo } from 'react';
 import { KANO_LABS } from './data/labs';
 import { Laboratory, LabService } from './types';
-import Map from './components/Map';
-import LabList from './components/LabList';
-import { Input } from './components/ui/input';
+import InvestigationPicker from './components/InvestigationPicker';
+import LabSuggestions, { ScoredLab } from './components/LabSuggestions';
+import LabDetail from './components/LabDetail';
+import { cn, calculateDistance } from './lib/utils';
 import { Badge } from './components/ui/badge';
-import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
-import { Search, Filter, Map as MapIcon, List, Beaker, Navigation } from 'lucide-react';
+import { Beaker, Navigation, Star, ArrowUpDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-// Haversine formula to calculate distance between two coordinates in km
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371; // Radius of the earth in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
+type SortMode = 'sponsored' | 'nearest';
 
 export default function App() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedService, setSelectedService] = useState<LabService | 'All'>('All');
-  const [view, setView] = useState<'map' | 'list'>('map');
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [selectedInvestigations, setSelectedInvestigations] = useState<LabService[]>([]);
   const [selectedLab, setSelectedLab] = useState<Laboratory | null>(null);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [sortMode, setSortMode] = useState<SortMode>('sponsored');
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available'>('all');
 
-  const services: (LabService | 'All')[] = [
-    'All', 'Blood Test', 'X-Ray', 'MRI', 'CT Scan', 'Ultrasound', 'Biopsy', 'Urine Analysis'
-  ];
-
+  // Get user location on mount
   useEffect(() => {
     if (navigator.geolocation) {
+      setIsLocating(true);
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation([position.coords.latitude, position.coords.longitude]);
+        (pos) => {
+          setUserLocation([pos.coords.latitude, pos.coords.longitude]);
+          setIsLocating(false);
         },
-        (error) => {
-          console.error("Error getting location:", error);
-        }
+        () => setIsLocating(false)
       );
     }
   }, []);
 
-  const filteredLabs = useMemo(() => {
+  // Compute scored + sorted labs
+  const scoredLabs = useMemo((): ScoredLab[] => {
     let labs = KANO_LABS.map(lab => {
-      if (userLocation) {
-        return {
-          ...lab,
-          distance: calculateDistance(
-            userLocation[0], userLocation[1],
-            lab.coordinates.lat, lab.coordinates.lng
-          )
-        };
-      }
-      return lab;
+      const distance = userLocation
+        ? calculateDistance(userLocation[0], userLocation[1], lab.coordinates.lat, lab.coordinates.lng)
+        : undefined;
+
+      const coveredCount = selectedInvestigations.filter(inv => lab.services.includes(inv)).length;
+      const missingTests = selectedInvestigations.filter(inv => !lab.services.includes(inv));
+
+      return { ...lab, distance, coveredCount, missingTests };
     });
 
-    // Sort by distance if location is available
-    if (userLocation) {
-      labs.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+    // Availability filter
+    if (availabilityFilter === 'available') {
+      labs = labs.filter(l => l.availability === 'available');
     }
 
-    return labs.filter(lab => {
-      const matchesSearch = lab.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          lab.address.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesService = selectedService === 'All' || lab.services.includes(selectedService as string);
-      const matchesAvailability = availabilityFilter === 'all' || lab.availability === 'available';
-      
-      return matchesSearch && matchesService && matchesAvailability;
-    });
-  }, [searchQuery, selectedService, availabilityFilter, userLocation]);
+    // Sorting
+    if (sortMode === 'nearest' && userLocation) {
+      labs.sort((a, b) => {
+        // Primary: by distance
+        const distDiff = (a.distance ?? 99999) - (b.distance ?? 99999);
+        // Tiebreak within 500m: featured first, then coverage, then rating
+        if (Math.abs(distDiff) < 0.5) {
+          if (a.featured && !b.featured) return -1;
+          if (!a.featured && b.featured) return 1;
+          return b.coveredCount - a.coveredCount || b.rating - a.rating;
+        }
+        return distDiff;
+      });
+    } else {
+      // Default sponsored-first
+      labs.sort((a, b) => {
+        // 1. Featured first
+        if (a.featured && !b.featured) return -1;
+        if (!a.featured && b.featured) return 1;
+        // 2. Most coverage
+        if (b.coveredCount !== a.coveredCount) return b.coveredCount - a.coveredCount;
+        // 3. Rating
+        return b.rating - a.rating;
+      });
+    }
+
+    return labs;
+  }, [selectedInvestigations, sortMode, availabilityFilter, userLocation]);
 
   return (
-    <div className="flex flex-col h-screen bg-background overflow-hidden">
+    <div className="flex flex-col h-screen bg-muted/30 overflow-hidden font-geist-variable">
       {/* Header */}
-      <header className="border-bottom bg-white z-10 px-4 py-3 shadow-sm">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="bg-primary p-2 rounded-lg">
-              <Beaker className="text-white w-6 h-6" />
+      <header className="glass-header px-4 py-3 shadow-sm border-b border-primary/10">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="bg-primary p-2 rounded-xl shadow-lg shadow-primary/20 rotate-3">
+              <Beaker className="text-white w-6 h-6 -rotate-3" />
             </div>
-            <h1 className="text-xl font-bold tracking-tight hidden sm:block">Kano Lab Connect</h1>
-          </div>
-          
-          <div className="flex-1 max-w-md mx-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input 
-                placeholder="Search laboratories or locations..." 
-                className="pl-10 bg-muted/50 border-none focus-visible:ring-primary"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+            <div className="flex flex-col">
+              <h1 className="text-xl font-black tracking-tight hidden sm:block leading-none">Kano Lab</h1>
+              <span className="text-[10px] font-bold text-primary uppercase tracking-widest hidden sm:block">Connect</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Tabs value={view} onValueChange={(v) => setView(v as 'map' | 'list')} className="w-[120px]">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="map"><MapIcon className="w-4 h-4" /></TabsTrigger>
-                <TabsTrigger value="list"><List className="w-4 h-4" /></TabsTrigger>
-              </TabsList>
-            </Tabs>
+          <div className="flex items-center gap-2 ml-auto">
+            {/* Availability filter */}
+            <Badge
+              variant={availabilityFilter === 'available' ? 'default' : 'outline'}
+              className={cn(
+                'cursor-pointer whitespace-nowrap rounded-full text-[11px] px-3 py-1',
+                availabilityFilter === 'available'
+                  ? 'bg-green-500 hover:bg-green-600 text-white shadow-md shadow-green-200'
+                  : 'bg-white/50 hover:bg-green-50 hover:border-green-200'
+              )}
+              onClick={() => setAvailabilityFilter(prev => prev === 'all' ? 'available' : 'all')}
+            >
+              Available Now
+            </Badge>
+
+            {/* Sort toggle */}
+            <div className="flex items-center gap-0.5 rounded-full border bg-white/50 p-0.5 shadow-sm">
+              <button
+                onClick={() => setSortMode('sponsored')}
+                className={cn(
+                  'flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold transition-all',
+                  sortMode === 'sponsored' ? 'bg-amber-400 text-white shadow' : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <Star className="w-2.5 h-2.5" /> Featured
+              </button>
+              <button
+                onClick={() => userLocation && setSortMode('nearest')}
+                disabled={!userLocation}
+                title={!userLocation ? 'Enable location to sort by distance' : 'Sort by nearest'}
+                className={cn(
+                  'flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold transition-all',
+                  sortMode === 'nearest' ? 'bg-primary text-white shadow' : 'text-muted-foreground hover:text-foreground',
+                  !userLocation && 'opacity-40 cursor-not-allowed'
+                )}
+              >
+                <ArrowUpDown className="w-2.5 h-2.5" />
+                {isLocating ? 'Locating…' : 'Nearest'}
+              </button>
+            </div>
+
+            {/* Re-centre location button */}
+            {userLocation && (
+              <button
+                title="Location acquired"
+                className="p-2 rounded-full bg-blue-50 border border-blue-200 text-blue-600"
+              >
+                <Navigation className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </header>
 
-      {/* Filters Bar */}
-      <div className="bg-white border-bottom px-4 py-2 overflow-x-auto no-scrollbar">
-        <div className="max-w-7xl mx-auto flex items-center gap-2">
-          <div className="flex items-center gap-2 shrink-0 mr-4 border-r pr-4">
-            <Filter className="w-4 h-4 text-muted-foreground" />
-            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Filters</span>
-          </div>
-          
-          <div className="flex gap-2">
-            {services.map((service) => (
-              <Badge 
-                key={service}
-                variant={selectedService === service ? 'default' : 'outline'}
-                className="cursor-pointer whitespace-nowrap hover:bg-primary hover:text-white transition-colors"
-                onClick={() => setSelectedService(service)}
-              >
-                {service}
-              </Badge>
-            ))}
+      {/* Main layout */}
+      <main className="flex-1 flex overflow-hidden">
+        {/* LEFT PANEL — Investigation picker + lab suggestions */}
+        <div className="w-full md:w-[420px] lg:w-[460px] flex flex-col border-r bg-muted/20 overflow-hidden">
+          {/* Investigation picker */}
+          <div className="p-4 border-b bg-white/60 backdrop-blur">
+            <InvestigationPicker
+              selected={selectedInvestigations}
+              onChange={setSelectedInvestigations}
+            />
           </div>
 
-          <div className="ml-auto flex items-center gap-2 border-l pl-4">
-             <Badge 
-                variant={availabilityFilter === 'available' ? 'default' : 'outline'}
-                className="cursor-pointer whitespace-nowrap"
-                onClick={() => setAvailabilityFilter(prev => prev === 'all' ? 'available' : 'all')}
-              >
-                Available Now
-              </Badge>
+          {/* Results header */}
+          <div className="px-4 py-2 flex items-center justify-between border-b bg-muted/10">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+              {scoredLabs.length} Labs
+              {selectedInvestigations.length > 0 && ` · ${selectedInvestigations.length} test${selectedInvestigations.length > 1 ? 's' : ''} selected`}
+            </span>
+            {selectedInvestigations.length > 0 && (
+              <span className="text-[10px] text-muted-foreground">
+                Sorted by {sortMode === 'sponsored' ? 'sponsored + coverage' : 'proximity'}
+              </span>
+            )}
+          </div>
+
+          {/* Suggestions list */}
+          <div className="flex-1 overflow-hidden p-3">
+            <LabSuggestions
+              labs={scoredLabs}
+              requestedCount={selectedInvestigations.length}
+              onSelectLab={setSelectedLab}
+              selectedLabId={selectedLab?.id}
+            />
           </div>
         </div>
-      </div>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col md:flex-row relative">
-        {/* Sidebar for Desktop */}
-        <div className="hidden md:block w-96 border-r bg-muted/30 p-4 overflow-hidden">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-sm uppercase tracking-widest text-muted-foreground">
-              {filteredLabs.length} Laboratories Found
-            </h2>
-          </div>
-          <LabList 
-            labs={filteredLabs} 
-            onSelectLab={(lab) => {
-              setSelectedLab(lab);
-              setView('map');
-            }}
-            selectedLabId={selectedLab?.id}
-          />
-        </div>
-
-        {/* Map/List View for Mobile & Map for Desktop */}
-        <div className="flex-1 relative">
+        {/* RIGHT PANEL — Lab detail (desktop) */}
+        <div className="hidden md:flex flex-1 p-4 overflow-hidden">
           <AnimatePresence mode="wait">
-            {view === 'map' ? (
-              <motion.div 
-                key="map"
+            {selectedLab ? (
+              <motion.div
+                key={selectedLab.id}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0"
+                className="w-full max-w-2xl mx-auto"
               >
-                <Map 
-                  labs={filteredLabs} 
+                <LabDetail
+                  lab={selectedLab}
+                  requestedTests={selectedInvestigations}
                   userLocation={userLocation}
-                  selectedLab={selectedLab}
-                  onSelectLab={setSelectedLab}
+                  onClose={() => setSelectedLab(null)}
                 />
               </motion.div>
             ) : (
-              <motion.div 
-                key="list"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="absolute inset-0 bg-white p-4 md:hidden overflow-y-auto"
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex-1 flex flex-col items-center justify-center text-center gap-4 text-muted-foreground"
               >
-                <LabList 
-                  labs={filteredLabs} 
-                  onSelectLab={(lab) => {
-                    setSelectedLab(lab);
-                    setView('map');
-                  }}
-                  selectedLabId={selectedLab?.id}
-                />
+                <div className="bg-muted/50 p-6 rounded-3xl">
+                  <Beaker className="w-12 h-12 text-muted-foreground/50 mx-auto" />
+                </div>
+                <div>
+                  <p className="font-semibold text-base">No lab selected</p>
+                  <p className="text-sm mt-1">
+                    {selectedInvestigations.length === 0
+                      ? 'Pick investigations on the left to find matching labs'
+                      : 'Click a lab card to see full details'}
+                  </p>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
-
-          {/* Floating Action Button for Location */}
-          <button 
-            onClick={() => {
-              if (userLocation) {
-                setSelectedLab(null);
-                // The map will center on userLocation if selectedLab is null
-              }
-            }}
-            className="absolute bottom-6 right-6 z-10 bg-white p-3 rounded-full shadow-lg border hover:bg-muted transition-colors"
-            title="My Location"
-          >
-            <Navigation className="w-6 h-6 text-primary" />
-          </button>
         </div>
       </main>
 
-      {/* Mobile Bottom Navigation (Optional, currently using tabs in header) */}
+      {/* Mobile: full-screen lab detail sheet */}
+      <AnimatePresence>
+        {selectedLab && (
+          <motion.div
+            key="mobile-detail"
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+            className="fixed inset-0 z-50 md:hidden bg-background"
+          >
+            <LabDetail
+              lab={selectedLab}
+              requestedTests={selectedInvestigations}
+              userLocation={userLocation}
+              onClose={() => setSelectedLab(null)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,21 +1,8 @@
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
 import { Laboratory } from '../types';
 import { useEffect } from 'react';
-
-// Fix for default marker icons in Leaflet with React
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
-const DefaultIcon = L.icon({
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
-
-L.Marker.prototype.options.icon = DefaultIcon;
+import { createUserIcon, createLabIcon } from './MapMarkers';
 
 interface MapProps {
   labs: Laboratory[];
@@ -27,21 +14,21 @@ interface MapProps {
 function ChangeView({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, 13);
+    map.setView(center, 13, { animate: true });
   }, [center, map]);
   return null;
 }
 
 export default function Map({ labs, userLocation, selectedLab, onSelectLab }: MapProps) {
-  const kanoCenter: [number, number] = [12.0022, 8.5920];
-  const center = selectedLab 
+  const kanoCenter: [number, number] = [11.9686, 8.5222]; // Centered on AKTH
+  const center = selectedLab
     ? [selectedLab.coordinates.lat, selectedLab.coordinates.lng] as [number, number]
     : userLocation || kanoCenter;
 
   return (
-    <MapContainer 
-      center={center} 
-      zoom={12} 
+    <MapContainer
+      center={center}
+      zoom={12}
       style={{ height: '100%', width: '100%' }}
       className="z-0"
     >
@@ -49,32 +36,40 @@ export default function Map({ labs, userLocation, selectedLab, onSelectLab }: Ma
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
       />
-      
+
       {userLocation && (
-        <Marker position={userLocation}>
+        <Marker
+          position={userLocation}
+          icon={createUserIcon()}
+        >
           <Popup>You are here</Popup>
         </Marker>
       )}
 
       {labs.map((lab) => (
-        <Marker 
-          key={lab.id} 
+        <Marker
+          key={lab.id}
           position={[lab.coordinates.lat, lab.coordinates.lng]}
+          icon={createLabIcon(lab.availability, selectedLab?.id === lab.id)}
           eventHandlers={{
             click: () => onSelectLab(lab),
           }}
         >
-          <Popup>
-            <div className="p-1">
-              <h3 className="font-bold">{lab.name}</h3>
-              <p className="text-sm">{lab.address}</p>
-              <div className="mt-2">
-                <span className={`text-xs px-2 py-1 rounded-full ${
-                  lab.availability === 'available' ? 'bg-green-100 text-green-800' :
-                  lab.availability === 'busy' ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-red-100 text-red-800'
-                }`}>
+          <Popup className="lab-popup">
+            <div className="p-1 min-w-[150px]">
+              <h3 className="font-bold text-base leading-tight mb-1">{lab.name}</h3>
+              <p className="text-xs text-muted-foreground mb-2 flex items-center">
+                {lab.address}
+              </p>
+              <div className="flex items-center justify-between mt-2">
+                <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${lab.availability === 'available' ? 'bg-green-100 text-green-800' :
+                    lab.availability === 'busy' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                  }`}>
                   {lab.availability}
+                </span>
+                <span className="text-xs font-semibold text-primary">
+                  {lab.rating} ★
                 </span>
               </div>
             </div>
