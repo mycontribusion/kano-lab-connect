@@ -17,26 +17,14 @@ interface LabSuggestionsProps {
     requestedCount: number;
     onSelectLab: (lab: Laboratory) => void;
     selectedLabId?: string;
+    layout?: 'list' | 'grid';
 }
 
-export default function LabSuggestions({ labs, requestedCount, onSelectLab, selectedLabId }: LabSuggestionsProps) {
-    if (requestedCount === 0) {
-        return (
-            <div className="flex flex-col items-center justify-center h-[300px] text-center p-6 bg-muted/20 rounded-2xl border-2 border-dashed border-muted">
-                <div className="bg-muted p-4 rounded-full mb-4">
-                    <SearchX className="w-8 h-8 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-bold">No investigations selected</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                    Pick the tests you need above — we'll find the best matching labs.
-                </p>
-            </div>
-        );
-    }
+export default function LabSuggestions({ labs, requestedCount, onSelectLab, selectedLabId, layout = 'list' }: LabSuggestionsProps) {
 
     if (labs.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center h-[300px] text-center p-6 bg-muted/20 rounded-2xl border-2 border-dashed border-muted">
+            <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center p-6 bg-muted/20 rounded-2xl border-2 border-dashed border-muted">
                 <div className="bg-muted p-4 rounded-full mb-4">
                     <SearchX className="w-8 h-8 text-muted-foreground" />
                 </div>
@@ -49,10 +37,10 @@ export default function LabSuggestions({ labs, requestedCount, onSelectLab, sele
     const pct = (covered: number) => Math.round((covered / requestedCount) * 100);
 
     return (
-        <ScrollArea className="h-[calc(100vh-420px)] md:h-[calc(100vh-260px)] pr-2">
-            <div className="space-y-3 pb-20">
+        <ScrollArea className="h-full pr-2">
+            <div className={cn('pb-20', layout === 'grid' ? 'grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3 items-start' : 'space-y-3')}>
                 {labs.map((lab, idx) => {
-                    const coverage = pct(lab.coveredCount);
+                    const coverage = requestedCount > 0 ? pct(lab.coveredCount) : 0;
                     const coverageColor =
                         coverage === 100 ? 'text-green-600' :
                             coverage >= 60 ? 'text-amber-600' : 'text-red-500';
@@ -69,7 +57,7 @@ export default function LabSuggestions({ labs, requestedCount, onSelectLab, sele
                             onClick={() => onSelectLab(lab)}
                         >
                             <Card className={cn(
-                                'cursor-pointer transition-all duration-300 glass-card hover:shadow-md border-transparent overflow-hidden',
+                                'cursor-pointer transition-all duration-300 glass-card hover:shadow-md border-transparent overflow-hidden h-full flex flex-col',
                                 selectedLabId === lab.id
                                     ? 'ring-2 ring-primary ring-offset-1 border-primary/50 translate-x-1'
                                     : 'hover:border-primary/20',
@@ -108,25 +96,27 @@ export default function LabSuggestions({ labs, requestedCount, onSelectLab, sele
                                     </div>
 
                                     {/* Coverage bar */}
-                                    <div>
-                                        <div className="flex items-center justify-between mb-1">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                                                Test Coverage
-                                            </span>
-                                            <span className={cn('text-[12px] font-black', coverageColor)}>
-                                                {lab.coveredCount}/{requestedCount} tests &nbsp;·&nbsp; {coverage}%
-                                            </span>
+                                    {requestedCount > 0 && (
+                                        <div>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                                    Test Coverage
+                                                </span>
+                                                <span className={cn('text-[12px] font-black', coverageColor)}>
+                                                    {lab.coveredCount}/{requestedCount} tests &nbsp;·&nbsp; {coverage}%
+                                                </span>
+                                            </div>
+                                            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                                                <div
+                                                    className={cn('h-full rounded-full transition-all', barColor)}
+                                                    style={{ width: `${coverage}%` }}
+                                                />
+                                            </div>
                                         </div>
-                                        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                                            <div
-                                                className={cn('h-full rounded-full transition-all', barColor)}
-                                                style={{ width: `${coverage}%` }}
-                                            />
-                                        </div>
-                                    </div>
+                                    )}
 
                                     {/* Missing tests (compact) */}
-                                    {lab.missingTests.length > 0 && (
+                                    {requestedCount > 0 && lab.missingTests.length > 0 && (
                                         <div className="flex flex-wrap gap-1">
                                             {lab.missingTests.slice(0, 3).map(t => (
                                                 <span key={t} className="flex items-center gap-0.5 text-[9px] text-red-500 bg-red-50 border border-red-100 rounded-full px-1.5 py-0.5">
@@ -140,7 +130,7 @@ export default function LabSuggestions({ labs, requestedCount, onSelectLab, sele
                                             )}
                                         </div>
                                     )}
-                                    {lab.missingTests.length === 0 && (
+                                    {requestedCount > 0 && lab.missingTests.length === 0 && (
                                         <div className="flex items-center gap-1 text-[10px] font-bold text-green-600">
                                             <CheckCircle2 className="w-3.5 h-3.5" />
                                             All requested tests available!
@@ -148,7 +138,7 @@ export default function LabSuggestions({ labs, requestedCount, onSelectLab, sele
                                     )}
 
                                     {/* Footer */}
-                                    <div className="flex items-center gap-2 pt-2 border-t">
+                                    <div className="flex items-center gap-2 pt-4 mt-auto border-t">
                                         <div className="flex items-center gap-3 flex-1">
                                             <div className="flex items-center">
                                                 <Star className="w-3 h-3 text-yellow-500 mr-1 fill-yellow-500" />

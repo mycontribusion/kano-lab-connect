@@ -40,43 +40,19 @@ export default function InvestigationPicker({ selected, onChange }: Investigatio
     return (
         <div className="space-y-3">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <div className="bg-primary/10 p-1.5 rounded-lg">
-                        <FlaskConical className="w-4 h-4 text-primary" />
-                    </div>
-                    <div>
-                        <h2 className="text-sm font-bold">Investigations Needed</h2>
-                        <p className="text-[10px] text-muted-foreground leading-none mt-0.5">
-                            Select tests to find matching labs
-                        </p>
-                    </div>
+            <div className="flex items-center gap-2">
+                <div className="bg-primary/10 p-1.5 rounded-lg">
+                    <FlaskConical className="w-4 h-4 text-primary" />
                 </div>
-                {selected.length > 0 && (
-                    <button
-                        onClick={clearAll}
-                        className="text-[10px] text-muted-foreground hover:text-destructive flex items-center gap-1 transition-colors"
-                    >
-                        <X className="w-3 h-3" /> Clear all
-                    </button>
-                )}
+                <div>
+                    <h2 className="text-sm font-bold">Investigations Needed</h2>
+                    <p className="text-[10px] text-muted-foreground leading-none mt-0.5">
+                        Select tests to find matching labs
+                    </p>
+                </div>
             </div>
 
-            {/* Selected chips */}
-            {selected.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 p-2.5 bg-primary/5 rounded-xl border border-primary/10">
-                    {selected.map(s => (
-                        <Badge
-                            key={s}
-                            className="cursor-pointer bg-primary text-white text-[10px] px-2 py-0.5 gap-1 rounded-full hover:bg-primary/80"
-                            onClick={() => toggle(s)}
-                        >
-                            {s}
-                            <X className="w-2.5 h-2.5" />
-                        </Badge>
-                    ))}
-                </div>
-            )}
+
 
             {/* Search */}
             <div className="relative">
@@ -99,7 +75,7 @@ export default function InvestigationPicker({ selected, onChange }: Investigatio
 
             {/* Category accordion */}
             <div className="space-y-1.5 max-h-[320px] overflow-y-auto pr-1 no-scrollbar">
-                {Object.entries(filteredCategories).map(([category, services]) => {
+                {(Object.entries(filteredCategories) as [string, LabService[]][]).map(([category, services]) => {
                     const isOpen = filteredIsOpen || expandedCategory === category;
                     const selectedInCat = services.filter(s => selected.includes(s)).length;
                     return (

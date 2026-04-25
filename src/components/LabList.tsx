@@ -17,7 +17,7 @@ interface LabListProps {
 export default function LabList({ labs, onSelectLab, selectedLabId, onClearFilters }: LabListProps) {
   if (labs.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-[300px] text-center p-6 bg-muted/20 rounded-2xl border-2 border-dashed border-muted">
+      <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center p-6 bg-muted/20 rounded-2xl border-2 border-dashed border-muted">
         <div className="bg-muted p-4 rounded-full mb-4">
           <SearchX className="w-8 h-8 text-muted-foreground" />
         </div>
@@ -35,8 +35,8 @@ export default function LabList({ labs, onSelectLab, selectedLabId, onClearFilte
   }
 
   return (
-    <ScrollArea className="h-[calc(100vh-210px)] pr-4">
-      <div className="space-y-4 pb-20">
+    <ScrollArea className="h-full pr-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20">
         {labs.map((lab) => (
           <motion.div
             key={lab.id}
@@ -47,7 +47,7 @@ export default function LabList({ labs, onSelectLab, selectedLabId, onClearFilte
             onClick={() => onSelectLab(lab)}
           >
             <Card className={cn(
-              "cursor-pointer transition-all duration-300 glass-card hover:shadow-md border-transparent overflow-hidden",
+              "cursor-pointer transition-all duration-300 glass-card hover:shadow-md border-transparent overflow-hidden h-full flex flex-col",
               selectedLabId === lab.id ? "ring-2 ring-primary ring-offset-1 border-primary/50 translate-x-1" : "hover:border-primary/20",
               lab.featured && selectedLabId !== lab.id && "ring-1 ring-amber-300/60 border-amber-200/40"
             )}>
@@ -80,8 +80,8 @@ export default function LabList({ labs, onSelectLab, selectedLabId, onClearFilte
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-4 pt-0 space-y-3">
-                <div className="flex items-center text-xs text-muted-foreground">
+              <CardContent className="p-4 pt-0 flex-1 flex flex-col">
+                <div className="flex items-center text-xs text-muted-foreground mb-3">
                   <MapPin className="w-3.5 h-3.5 mr-1.5 shrink-0 text-primary/70" />
                   <span className="truncate">{lab.address}</span>
                 </div>
@@ -111,7 +111,7 @@ export default function LabList({ labs, onSelectLab, selectedLabId, onClearFilte
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 mt-4 pt-3 border-t">
+                <div className="flex items-center gap-2 mt-auto pt-4 border-t">
                   <Button
                     variant="default"
                     size="sm"

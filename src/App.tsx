@@ -6,10 +6,10 @@ import LabSuggestions, { ScoredLab } from './components/LabSuggestions';
 import LabDetail from './components/LabDetail';
 import { cn, calculateDistance } from './lib/utils';
 import { Badge } from './components/ui/badge';
-import { Beaker, Navigation, Star, ArrowUpDown } from 'lucide-react';
+import { Beaker, Navigation, Star, ArrowUpDown, X, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-type SortMode = 'sponsored' | 'nearest';
+type SortMode = 'sponsored' | 'nearest' | 'rating';
 
 export default function App() {
   const [selectedInvestigations, setSelectedInvestigations] = useState<LabService[]>([]);
@@ -19,18 +19,35 @@ export default function App() {
   const [sortMode, setSortMode] = useState<SortMode>('sponsored');
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available'>('all');
 
-  // Get user location on mount
-  useEffect(() => {
+  const fetchUserLocation = () => {
     if (navigator.geolocation) {
       setIsLocating(true);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          setUserLocation([pos.coords.latitude, pos.coords.longitude]);
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const distToKano = calculateDistance(lat, lng, 11.9686, 8.5222);
+
+          if (distToKano > 100) {
+            if (window.confirm(`Your detected location is ${Math.round(distToKano)}km from Kano. Would you like to use a simulated Kano location for testing?`)) {
+              setUserLocation([11.9686, 8.5222]);
+            } else {
+              setUserLocation([lat, lng]);
+            }
+          } else {
+            setUserLocation([lat, lng]);
+          }
           setIsLocating(false);
         },
-        () => setIsLocating(false)
+        () => setIsLocating(false),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     }
+  };
+
+  // Get user location on mount
+  useEffect(() => {
+    fetchUserLocation();
   }, []);
 
   // Compute scored + sorted labs
@@ -63,6 +80,17 @@ export default function App() {
           return b.coveredCount - a.coveredCount || b.rating - a.rating;
         }
         return distDiff;
+      });
+    } else if (sortMode === 'rating') {
+      labs.sort((a, b) => {
+        // 1. Rating first
+        if (b.rating !== a.rating) return b.rating - a.rating;
+        // 2. Most coverage
+        if (b.coveredCount !== a.coveredCount) return b.coveredCount - a.coveredCount;
+        // 3. Featured
+        if (a.featured && !b.featured) return -1;
+        if (!a.featured && b.featured) return 1;
+        return 0;
       });
     } else {
       // Default sponsored-first
@@ -122,6 +150,15 @@ export default function App() {
                 <Star className="w-2.5 h-2.5" /> Featured
               </button>
               <button
+                onClick={() => setSortMode('rating')}
+                className={cn(
+                  'flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold transition-all',
+                  sortMode === 'rating' ? 'bg-primary text-white shadow' : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <Award className="w-2.5 h-2.5" /> Top Rated
+              </button>
+              <button
                 onClick={() => userLocation && setSortMode('nearest')}
                 disabled={!userLocation}
                 title={!userLocation ? 'Enable location to sort by distance' : 'Sort by nearest'}
@@ -136,15 +173,21 @@ export default function App() {
               </button>
             </div>
 
-            {/* Re-centre location button */}
-            {userLocation && (
-              <button
-                title="Location acquired"
-                className="p-2 rounded-full bg-blue-50 border border-blue-200 text-blue-600"
-              >
-                <Navigation className="w-4 h-4" />
-              </button>
-            )}
+            {/* Re-centre / Fetch location button */}
+            <button
+              onClick={fetchUserLocation}
+              title={userLocation ? 'Refresh location' : 'Fetch location'}
+              className={cn(
+                'p-2 rounded-full border transition-all duration-300',
+                isLocating
+                  ? 'bg-muted border-muted text-muted-foreground animate-pulse'
+                  : userLocation
+                    ? 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100 hover:shadow-sm'
+                    : 'bg-white border-muted text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              )}
+            >
+              <Navigation className={cn("w-4 h-4", isLocating && "opacity-50")} />
+            </button>
           </div>
         </div>
       </header>
@@ -161,26 +204,56 @@ export default function App() {
             />
           </div>
 
-          {/* Results header */}
-          <div className="px-4 py-2 flex items-center justify-between border-b bg-muted/10">
+          {/* Mobile Results Header */}
+          <div className="px-4 py-2 flex md:hidden items-center justify-between border-b bg-muted/10">
             <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
               {scoredLabs.length} Labs
               {selectedInvestigations.length > 0 && ` · ${selectedInvestigations.length} test${selectedInvestigations.length > 1 ? 's' : ''} selected`}
             </span>
-            {selectedInvestigations.length > 0 && (
-              <span className="text-[10px] text-muted-foreground">
-                Sorted by {sortMode === 'sponsored' ? 'sponsored + coverage' : 'proximity'}
-              </span>
-            )}
           </div>
 
-          {/* Suggestions list */}
-          <div className="flex-1 overflow-hidden p-3">
+          {/* Desktop Picked Investigations */}
+          <div className="hidden md:flex flex-1 flex-col overflow-hidden bg-white/40">
+            <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/10">
+              <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
+                Picked Investigations ({selectedInvestigations.length})
+              </h3>
+              {selectedInvestigations.length > 0 && (
+                <button onClick={() => setSelectedInvestigations([])} className="text-[10px] uppercase font-bold text-red-500 hover:text-red-600 transition-colors">
+                  Clear All
+                </button>
+              )}
+            </div>
+
+            <div className="flex-1 overflow-auto p-4">
+              {selectedInvestigations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center p-6 border-2 border-dashed rounded-xl border-muted bg-white/50">
+                  <Beaker className="w-8 h-8 text-muted-foreground/30 mb-2" />
+                  <p className="text-sm text-muted-foreground font-medium">Select investigations above to build your request.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {selectedInvestigations.map(s => (
+                    <div key={s} className="flex items-center justify-between p-3 bg-white rounded-xl border shadow-sm group">
+                      <span className="text-sm font-semibold">{s}</span>
+                      <button onClick={() => setSelectedInvestigations(prev => prev.filter(i => i !== s))} className="p-1 text-muted-foreground hover:bg-red-50 hover:text-red-500 rounded-md transition-colors sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Mobile Suggestions list */}
+          <div className="flex-1 overflow-hidden p-3 md:hidden">
             <LabSuggestions
               labs={scoredLabs}
               requestedCount={selectedInvestigations.length}
               onSelectLab={setSelectedLab}
               selectedLabId={selectedLab?.id}
+              layout="list"
             />
           </div>
         </div>
@@ -208,18 +281,31 @@ export default function App() {
                 key="empty"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="flex-1 flex flex-col items-center justify-center text-center gap-4 text-muted-foreground"
+                className="w-full h-full flex flex-col pt-2"
               >
-                <div className="bg-muted/50 p-6 rounded-3xl">
-                  <Beaker className="w-12 h-12 text-muted-foreground/50 mx-auto" />
+                <div className="mb-4 px-4 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-black text-foreground">All Laboratories</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedInvestigations.length === 0
+                        ? 'Pick tests on the left or click a lab card below'
+                        : `Showing ${scoredLabs.length} matched labs`}
+                    </p>
+                  </div>
+                  {selectedInvestigations.length > 0 && (
+                    <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full border">
+                      Sorted by {sortMode === 'sponsored' ? 'sponsored + coverage' : 'proximity'}
+                    </span>
+                  )}
                 </div>
-                <div>
-                  <p className="font-semibold text-base">No lab selected</p>
-                  <p className="text-sm mt-1">
-                    {selectedInvestigations.length === 0
-                      ? 'Pick investigations on the left to find matching labs'
-                      : 'Click a lab card to see full details'}
-                  </p>
+                <div className="flex-1 overflow-hidden px-4">
+                  <LabSuggestions
+                    labs={scoredLabs}
+                    requestedCount={selectedInvestigations.length}
+                    onSelectLab={setSelectedLab}
+                    selectedLabId={undefined}
+                    layout="grid"
+                  />
                 </div>
               </motion.div>
             )}
