@@ -98,9 +98,7 @@ export default function App() {
       <header className="glass-header px-4 py-3 shadow-sm border-b border-primary/10 flex-shrink-0">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 shrink-0">
-            <div className="bg-primary p-2 rounded-xl shadow-lg shadow-primary/20 rotate-3">
-              <Beaker className="text-white w-6 h-6 -rotate-3" />
-            </div>
+            <img src="/logo.png" alt="Kano Lab Connect Logo" className="w-10 h-10 object-contain drop-shadow-md rounded-xl" />
             <div className="flex flex-col">
               <h1 className="text-xl font-black tracking-tight hidden sm:block leading-none">Kano Lab</h1>
               <span className="text-[10px] font-bold text-primary uppercase tracking-widest hidden sm:block">Connect</span>
