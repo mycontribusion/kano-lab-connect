@@ -38,7 +38,7 @@ export default function InvestigationPicker({ selected, onChange }: Investigatio
     const filteredIsOpen = query.trim().length > 0;
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-3 flex flex-col h-full">
             {/* Header */}
             <div className="flex items-center gap-2">
                 <div className="bg-primary/10 p-1.5 rounded-lg">
@@ -55,7 +55,7 @@ export default function InvestigationPicker({ selected, onChange }: Investigatio
 
 
             {/* Search */}
-            <div className="relative">
+            <div className="relative shrink-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <Input
                     placeholder="Search investigations..."
@@ -74,7 +74,7 @@ export default function InvestigationPicker({ selected, onChange }: Investigatio
             </div>
 
             {/* Category accordion */}
-            <div className="space-y-1.5 max-h-[320px] overflow-y-auto pr-1 no-scrollbar">
+            <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto pr-1 no-scrollbar md:max-h-[320px]">
                 {(Object.entries(filteredCategories) as [string, LabService[]][]).map(([category, services]) => {
                     const isOpen = filteredIsOpen || expandedCategory === category;
                     const selectedInCat = services.filter(s => selected.includes(s)).length;

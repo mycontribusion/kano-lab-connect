@@ -6,7 +6,7 @@ import LabSuggestions, { ScoredLab } from './components/LabSuggestions';
 import LabDetail from './components/LabDetail';
 import { cn, calculateDistance } from './lib/utils';
 import { Badge } from './components/ui/badge';
-import { Beaker, Navigation, Star, ArrowUpDown, X, Award } from 'lucide-react';
+import { Beaker, Navigation, Star, ArrowUpDown, X, Award, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 type SortMode = 'sponsored' | 'nearest' | 'rating';
@@ -18,36 +18,20 @@ export default function App() {
   const [isLocating, setIsLocating] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>('sponsored');
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available'>('all');
+  const [isMobilePickerOpen, setIsMobilePickerOpen] = useState(false);
 
-  const fetchUserLocation = () => {
+  // Get user location on mount
+  useEffect(() => {
     if (navigator.geolocation) {
       setIsLocating(true);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          const distToKano = calculateDistance(lat, lng, 11.9686, 8.5222);
-
-          if (distToKano > 100) {
-            if (window.confirm(`Your detected location is ${Math.round(distToKano)}km from Kano. Would you like to use a simulated Kano location for testing?`)) {
-              setUserLocation([11.9686, 8.5222]);
-            } else {
-              setUserLocation([lat, lng]);
-            }
-          } else {
-            setUserLocation([lat, lng]);
-          }
+          setUserLocation([pos.coords.latitude, pos.coords.longitude]);
           setIsLocating(false);
         },
-        () => setIsLocating(false),
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        () => setIsLocating(false)
       );
     }
-  };
-
-  // Get user location on mount
-  useEffect(() => {
-    fetchUserLocation();
   }, []);
 
   // Compute scored + sorted labs
@@ -109,9 +93,9 @@ export default function App() {
   }, [selectedInvestigations, sortMode, availabilityFilter, userLocation]);
 
   return (
-    <div className="flex flex-col h-screen bg-muted/30 overflow-hidden font-geist-variable">
+    <div className="flex flex-col h-[100dvh] md:h-screen bg-muted/30 font-geist-variable overflow-hidden">
       {/* Header */}
-      <header className="glass-header px-4 py-3 shadow-sm border-b border-primary/10">
+      <header className="glass-header px-4 py-3 shadow-sm border-b border-primary/10 flex-shrink-0">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 shrink-0">
             <div className="bg-primary p-2 rounded-xl shadow-lg shadow-primary/20 rotate-3">
@@ -123,7 +107,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-2 ml-auto overflow-x-auto no-scrollbar pb-1 -mb-1">
             {/* Availability filter */}
             <Badge
               variant={availabilityFilter === 'available' ? 'default' : 'outline'}
@@ -139,7 +123,7 @@ export default function App() {
             </Badge>
 
             {/* Sort toggle */}
-            <div className="flex items-center gap-0.5 rounded-full border bg-white/50 p-0.5 shadow-sm">
+            <div className="flex items-center gap-0.5 rounded-full border bg-white/50 p-0.5 shadow-sm whitespace-nowrap">
               <button
                 onClick={() => setSortMode('sponsored')}
                 className={cn(
@@ -173,21 +157,15 @@ export default function App() {
               </button>
             </div>
 
-            {/* Re-centre / Fetch location button */}
-            <button
-              onClick={fetchUserLocation}
-              title={userLocation ? 'Refresh location' : 'Fetch location'}
-              className={cn(
-                'p-2 rounded-full border transition-all duration-300',
-                isLocating
-                  ? 'bg-muted border-muted text-muted-foreground animate-pulse'
-                  : userLocation
-                    ? 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100 hover:shadow-sm'
-                    : 'bg-white border-muted text-muted-foreground hover:text-foreground hover:bg-muted/50'
-              )}
-            >
-              <Navigation className={cn("w-4 h-4", isLocating && "opacity-50")} />
-            </button>
+            {/* Re-centre location button */}
+            {userLocation && (
+              <button
+                title="Location acquired"
+                className="p-2 rounded-full bg-blue-50 border border-blue-200 text-blue-600 shrink-0"
+              >
+                <Navigation className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -196,12 +174,31 @@ export default function App() {
       <main className="flex-1 flex overflow-hidden">
         {/* LEFT PANEL — Investigation picker + lab suggestions */}
         <div className="w-full md:w-[420px] lg:w-[460px] flex flex-col border-r bg-muted/20 overflow-hidden">
-          {/* Investigation picker */}
-          <div className="p-4 border-b bg-white/60 backdrop-blur">
-            <InvestigationPicker
-              selected={selectedInvestigations}
-              onChange={setSelectedInvestigations}
-            />
+
+          {/* Mobile Panel Toggle */}
+          <div className="md:hidden p-3 border-b bg-white/80 backdrop-blur z-10 shadow-sm flex items-center justify-between">
+            <button
+              onClick={() => setIsMobilePickerOpen(!isMobilePickerOpen)}
+              className="flex flex-1 items-center justify-between px-4 py-2.5 rounded-xl border border-primary/20 bg-primary/5 text-sm font-bold text-primary hover:bg-primary/10 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Beaker className="w-4 h-4" />
+                {selectedInvestigations.length > 0
+                  ? `${selectedInvestigations.length} tests picked`
+                  : 'Pick investigations...'}
+              </div>
+              <ChevronDown className={cn('w-4 h-4 transition-transform duration-200', isMobilePickerOpen && 'rotate-180')} />
+            </button>
+          </div>
+
+          {/* Investigation picker (Top Half) */}
+          <div className={cn("p-3 md:p-4 border-b bg-white/60 backdrop-blur flex-shrink-0 flex-col max-h-[60vh] md:max-h-none h-auto", isMobilePickerOpen ? "flex" : "hidden md:flex")}>
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <InvestigationPicker
+                selected={selectedInvestigations}
+                onChange={setSelectedInvestigations}
+              />
+            </div>
           </div>
 
           {/* Mobile Results Header */}
