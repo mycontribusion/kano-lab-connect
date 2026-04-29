@@ -4,14 +4,12 @@ import { Laboratory, LabService } from './types';
 import InvestigationPicker from './components/InvestigationPicker';
 import LabSuggestions, { ScoredLab } from './components/LabSuggestions';
 import LabDetail from './components/LabDetail';
-import Map from './components/Map';
 import { cn, calculateDistance } from './lib/utils';
 import { Badge } from './components/ui/badge';
 import { Beaker, Navigation, Star, ArrowUpDown, X, Award, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 type SortMode = 'sponsored' | 'nearest' | 'rating';
-type ViewMode = 'list' | 'map';
 
 export default function App() {
   const [selectedInvestigations, setSelectedInvestigations] = useState<LabService[]>([]);
@@ -21,7 +19,6 @@ export default function App() {
   const [sortMode, setSortMode] = useState<SortMode>('sponsored');
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available'>('all');
   const [isMobilePickerOpen, setIsMobilePickerOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
 
   // Get user location on mount
   useEffect(() => {
@@ -208,26 +205,6 @@ export default function App() {
               {scoredLabs.length} Labs
               {selectedInvestigations.length > 0 && ` · ${selectedInvestigations.length} test${selectedInvestigations.length > 1 ? 's' : ''} selected`}
             </span>
-            <div className="flex bg-muted/20 p-1 rounded-lg border border-primary/10">
-              <button
-                onClick={() => setViewMode('list')}
-                className={cn(
-                  "px-3 py-1 rounded-md text-[10px] font-bold transition-all",
-                  viewMode === 'list' ? "bg-white shadow-sm text-primary" : "text-muted-foreground"
-                )}
-              >
-                List
-              </button>
-              <button
-                onClick={() => setViewMode('map')}
-                className={cn(
-                  "px-3 py-1 rounded-md text-[10px] font-bold transition-all",
-                  viewMode === 'map' ? "bg-white shadow-sm text-primary" : "text-muted-foreground"
-                )}
-              >
-                Map
-              </button>
-            </div>
           </div>
 
           {/* Desktop Picked Investigations */}
@@ -264,26 +241,15 @@ export default function App() {
             </div>
           </div>
 
-          {/* Mobile Suggestions list / Map */}
+          {/* Mobile Suggestions list */}
           <div className="flex-1 overflow-hidden p-3 md:hidden">
-            {viewMode === 'list' ? (
-              <LabSuggestions
-                labs={scoredLabs}
-                requestedCount={selectedInvestigations.length}
-                onSelectLab={setSelectedLab}
-                selectedLabId={selectedLab?.id}
-                layout="list"
-              />
-            ) : (
-              <div className="h-full rounded-2xl overflow-hidden border shadow-inner bg-muted/10">
-                <Map
-                  labs={scoredLabs}
-                  userLocation={userLocation}
-                  selectedLab={selectedLab}
-                  onSelectLab={setSelectedLab}
-                />
-              </div>
-            )}
+            <LabSuggestions
+              labs={scoredLabs}
+              requestedCount={selectedInvestigations.length}
+              onSelectLab={setSelectedLab}
+              selectedLabId={selectedLab?.id}
+              layout="list"
+            />
           </div>
         </div>
 
@@ -327,24 +293,14 @@ export default function App() {
                     </span>
                   )}
                 </div>
-                <div className="flex-1 overflow-hidden px-4 flex flex-col gap-4">
-                  <div className="flex-1 min-h-0">
-                    <LabSuggestions
-                      labs={scoredLabs}
-                      requestedCount={selectedInvestigations.length}
-                      onSelectLab={setSelectedLab}
-                      selectedLabId={undefined}
-                      layout="grid"
-                    />
-                  </div>
-                  <div className="h-[300px] rounded-2xl overflow-hidden border shadow-inner bg-muted/10 shrink-0">
-                    <Map
-                      labs={scoredLabs}
-                      userLocation={userLocation}
-                      selectedLab={null}
-                      onSelectLab={setSelectedLab}
-                    />
-                  </div>
+                <div className="flex-1 overflow-hidden px-4">
+                  <LabSuggestions
+                    labs={scoredLabs}
+                    requestedCount={selectedInvestigations.length}
+                    onSelectLab={setSelectedLab}
+                    selectedLabId={undefined}
+                    layout="grid"
+                  />
                 </div>
               </motion.div>
             )}
